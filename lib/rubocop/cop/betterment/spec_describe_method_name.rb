@@ -19,36 +19,36 @@ module RuboCop
           xit xspecify xexample xscenario
         ).freeze
 
-        RESTRICT_ON_SEND = EXAMPLE_METHODS
+        RESTRICT_ON_SEND = (DESCRIBE_METHODS + EXAMPLE_METHODS).freeze
 
-        def on_block(node)
-          send_node = node.send_node
-          return unless example_group?(send_node)
+        def on_send(node)
+          if DESCRIBE_METHODS.include?(node.method_name)
+            check_describe(node) if rspec_receiver?(node)
+          elsif node.receiver.nil?
+            check_example(node)
+          end
+        end
+        alias on_csend on_send
 
+        private
+
+        def check_describe(node)
           groups = enclosing_groups(node)
           return if groups.any? { |group| shared_group?(group) }
 
-          check_class_label(send_node) if groups.empty?
-          check_method_describe_placement(send_node, groups)
+          check_class_label(node) if groups.empty?
+          check_method_describe_placement(node, groups)
         end
-        alias on_numblock on_block
 
-        def on_send(node)
-          return unless node.receiver.nil?
-
+        def check_example(node)
           groups = enclosing_groups(node)
           return if groups.any? { |group| shared_group?(group) || method_describe?(group) }
           return unless groups.any? { |group| class_describe?(group) }
 
           add_offense(node, message: MSG_METHOD_LABEL)
         end
-        alias on_csend on_send
-
-        private
 
         def check_class_label(send_node)
-          return unless describe?(send_node)
-
           label = send_node.first_argument
           return if label.nil? || label.const_type?
 
@@ -68,6 +68,8 @@ module RuboCop
         def enclosing_groups(node)
           node.each_ancestor(:block, :numblock).filter_map do |ancestor|
             send_node = ancestor.send_node
+            next if send_node.equal?(node)
+
             send_node if example_group?(send_node) || shared_group?(send_node)
           end
         end

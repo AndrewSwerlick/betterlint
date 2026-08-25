@@ -198,6 +198,15 @@ describe RuboCop::Cop::Betterment::SpecDescribeMethodName, :config do
     end
   end
 
+  context 'when the describe has no block' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        RSpec.describe "Invoice"
+                       ^^^^^^^^^ Label the outer `describe` with the class constant, not a string.
+      RUBY
+    end
+  end
+
   context 'when a describe belongs to another library' do
     it 'does not register an offense' do
       expect_no_offenses(<<~RUBY)
