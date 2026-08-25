@@ -7,8 +7,9 @@ module RuboCop
         MSG_CLASS_LABEL = 'Label the outer `describe` with the class constant, not a string.'
         MSG_METHOD_LABEL = 'Put examples inside a `describe` labeled with a method name, such as `"#instance_method"` or `".class_method"`.'
         MSG_DIRECTLY_INSIDE = 'Put the method `describe` directly inside the class `describe`, and share setup with `let` or `before`.'
+        MSG_ONE_CLASS = 'Describe one class in each spec file, and put the method `describe` directly inside the outer `describe`.'
 
-        METHOD_LABEL = /\A(?:#|\.|::)\S/
+        METHOD_LABEL = /\A[#.]\S/
 
         DESCRIBE_METHODS = %i(describe fdescribe xdescribe).freeze
         EXAMPLE_GROUP_METHODS = %i(describe fdescribe xdescribe context fcontext xcontext).freeze
@@ -59,10 +60,10 @@ module RuboCop
           return unless method_describe?(send_node)
 
           parent = groups.first
-          return if parent.nil? || class_describe?(parent)
+          return if parent.nil? || (groups.one? && class_describe?(parent))
           return unless groups.any? { |group| class_describe?(group) }
 
-          add_offense(send_node, message: MSG_DIRECTLY_INSIDE)
+          add_offense(send_node, message: class_describe?(parent) ? MSG_ONE_CLASS : MSG_DIRECTLY_INSIDE)
         end
 
         def enclosing_groups(node)

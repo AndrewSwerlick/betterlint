@@ -93,11 +93,12 @@ describe RuboCop::Cop::Betterment::SpecDescribeMethodName, :config do
   end
 
   context 'when a nested class describe holds the method describe' do
-    it 'does not register an offense' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
         RSpec.describe Invoice do
           describe Invoice::Item do
             describe "#total" do
+            ^^^^^^^^^^^^^^^^^ Describe one class in each spec file, and put the method `describe` directly inside the outer `describe`.
               it "sums the line items" do
                 expect(item.total).to eq 100
               end
@@ -152,13 +153,42 @@ describe RuboCop::Cop::Betterment::SpecDescribeMethodName, :config do
     end
   end
 
-  context 'when the method describe uses a class method separator' do
-    it 'does not register an offense' do
-      expect_no_offenses(<<~RUBY)
+  context 'when the method describe uses a double colon separator' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
         RSpec.describe Invoice do
           describe "::open" do
             it "excludes paid invoices" do
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Put examples inside a `describe` labeled with a method name, such as `"#instance_method"` or `".class_method"`.
               expect(described_class.open).to be_empty
+            end
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when the outer describe is a namespaced constant' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        RSpec.describe Invoice::Item do
+          describe "#total" do
+            it "sums the line items" do
+              expect(item.total).to eq 100
+            end
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when the method label carries trailing words' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        RSpec.describe Invoice do
+          describe "#total with tax" do
+            it "adds the tax" do
+              expect(invoice.total).to eq 110
             end
           end
         end

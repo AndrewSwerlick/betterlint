@@ -394,6 +394,16 @@ RSpec.describe Invoice do
   end
 end
 
+# BAD - a second class describe breaks the "Invoice::Item#total" label.
+# Give Invoice::Item its own spec file.
+RSpec.describe Invoice do
+  describe Invoice::Item do
+    describe "#total" do
+      # ...
+    end
+  end
+end
+
 # GOOD - shared setup above the method labels
 RSpec.describe Invoice do
   let(:account) { create(:account, :delinquent) }
