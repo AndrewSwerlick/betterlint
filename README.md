@@ -370,11 +370,7 @@ the `coder` keyword argument.
 
 ### Betterment/SpecDescribeMethodName
 
-This cop requires each spec to name the class under test and the method under test. Label the outer `describe` with the
-class constant, and label each method with a nested `describe` of the form `"#instance_method"` or `".class_method"`.
-Put the method `describe` directly inside the class `describe`, because a `context` block in between breaks the
-`Invoice#total` label. This structure works with [mutant](https://github.com/mbj/mutant), which we use for mutation
-testing in some of our applications, and it gives consistent information in test failure traces.
+This cop requires each spec to name the class under test and the method under test using `describe` blocks. The outermost `describe` blocks should be the class constant, and second level `describe` blocks should be of the form `"#instance_method"` or `".class_method"`. This structure works with [mutant](https://github.com/mbj/mutant) and creates consistently shaped specs
 
 ```ruby
 # BAD - the outer describe is a string
@@ -416,7 +412,4 @@ RSpec.describe Invoice do
 end
 ```
 
-This cop is disabled by default, because it reports many offenses in applications with older specs. To use it, enable
-it in your `.rubocop.yml`. By default it examines all files in `spec/`, except for the `features`, `requests`,
-`routing`, `system`, and `views` directories, where the outer `describe` labels a page or an endpoint instead of a
-class. Examples in shared example groups are also ignored.
+This cop is disabled by default, because it reports many offenses in applications with older specs. To use it, enable it in your `.rubocop.yml`. By default it examines all files in `spec/`, except for the `features`, `requests`, `routing`, `system`, and `views` directories, where integration style tests that don't test one class and method are common. Examples in shared example groups are also ignored.
