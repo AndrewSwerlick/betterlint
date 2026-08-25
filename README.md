@@ -367,3 +367,56 @@ the `coder` keyword argument.
 - And you've opted into 7.1 defaults (namely, `config.active_record.default_column_serializer = nil`)
 
 ...you can safely disable this cop, since failing to pass a deserializer will raise an exception.
+
+### Betterment/SpecDescribeMethodName
+
+This cop requires each spec to name the class under test and the method under test. Label the outer `describe` with the
+class constant, and label each method with a nested `describe` of the form `"#instance_method"` or `".class_method"`.
+Put the method `describe` directly inside the class `describe`, because a `context` block in between breaks the
+`Invoice#total` label. This structure works with [mutant](https://github.com/mbj/mutant), which we use for mutation
+testing in some of our applications, and it gives consistent information in test failure traces.
+
+```ruby
+# BAD - the outer describe is a string
+RSpec.describe "Invoice" do
+  # ...
+end
+
+# BAD - no method label
+RSpec.describe Invoice do
+  it "sums the line items" do
+    # ...
+  end
+end
+
+# BAD - the context block breaks the "Invoice#total" label
+RSpec.describe Invoice do
+  context "when the account is delinquent" do
+    describe "#total" do
+      # ...
+    end
+  end
+end
+
+# GOOD - shared setup above the method labels
+RSpec.describe Invoice do
+  let(:account) { create(:account, :delinquent) }
+
+  describe "#total" do
+    it "adds the late fee" do
+      # ...
+    end
+  end
+
+  describe ".open" do
+    it "excludes paid invoices" do
+      # ...
+    end
+  end
+end
+```
+
+This cop is disabled by default, because it reports many offenses in applications with older specs. To use it, enable
+it in your `.rubocop.yml`. By default it examines all files in `spec/`, except for the `features`, `requests`,
+`routing`, `system`, and `views` directories, where the outer `describe` labels a page or an endpoint instead of a
+class. Examples in shared example groups are also ignored.
