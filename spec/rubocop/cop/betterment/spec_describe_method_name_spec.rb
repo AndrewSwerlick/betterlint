@@ -166,6 +166,50 @@ describe RuboCop::Cop::Betterment::SpecDescribeMethodName, :config do
     end
   end
 
+  context 'when the describe has an explicit top level RSpec receiver' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        ::RSpec.describe Invoice do
+          describe "#total" do
+            it "sums the line items" do
+              expect(invoice.total).to eq 100
+            end
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a method with an example name has a receiver' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        RSpec.describe Invoice do
+          before do
+            report.scenario "a name that is not an example"
+          end
+
+          describe "#total" do
+            it "sums the line items" do
+              expect(invoice.total).to eq 100
+            end
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a describe belongs to another library' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        Minitest.describe "Invoice" do
+          it "sums the line items" do
+            expect(invoice.total).to eq 100
+          end
+        end
+      RUBY
+    end
+  end
+
   context 'when a describe inside the class describe is not a method label' do
     it 'registers an offense for the examples' do
       expect_offense(<<~RUBY)

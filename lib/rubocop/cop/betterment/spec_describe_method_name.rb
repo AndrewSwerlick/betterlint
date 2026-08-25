@@ -10,100 +10,100 @@ module RuboCop
 
         METHOD_LABEL = /\A(?:#|\.|::)\S/
 
-        # @!method example_group_send?(node)
-        def_node_matcher :example_group_send?, <<~PATTERN
-          (send {nil? (const {nil? cbase} :RSpec)} {:describe :context :fdescribe :fcontext :xdescribe :xcontext} ...)
-        PATTERN
+        DESCRIBE_METHODS = %i(describe fdescribe xdescribe).freeze
+        EXAMPLE_GROUP_METHODS = %i(describe fdescribe xdescribe context fcontext xcontext).freeze
+        SHARED_GROUP_METHODS = %i(shared_examples shared_examples_for shared_context).freeze
+        EXAMPLE_METHODS = %i(
+          it its specify example scenario
+          fit fspecify fexample fscenario
+          xit xspecify xexample xscenario
+        ).freeze
 
-        # @!method describe_send?(node)
-        def_node_matcher :describe_send?, <<~PATTERN
-          (send {nil? (const {nil? cbase} :RSpec)} {:describe :fdescribe :xdescribe} ...)
-        PATTERN
-
-        # @!method shared_group_send?(node)
-        def_node_matcher :shared_group_send?, <<~PATTERN
-          (send {nil? (const {nil? cbase} :RSpec)} {:shared_examples :shared_examples_for :shared_context} ...)
-        PATTERN
-
-        # @!method example_send?(node)
-        def_node_matcher :example_send?, <<~PATTERN
-          (send nil? {
-            :it :its :specify :example :scenario
-            :fit :fspecify :fexample :fscenario
-            :xit :xspecify :xexample :xscenario
-          } ...)
-        PATTERN
+        RESTRICT_ON_SEND = EXAMPLE_METHODS
 
         def on_block(node)
-          return unless example_group_send?(node.send_node)
-          return if inside_shared_group?(node)
+          send_node = node.send_node
+          return unless example_group?(send_node)
 
-          check_class_label(node)
-          check_method_describe_placement(node)
+          groups = enclosing_groups(node)
+          return if groups.any? { |group| shared_group?(group) }
+
+          check_class_label(send_node) if groups.empty?
+          check_method_describe_placement(send_node, groups)
         end
         alias on_numblock on_block
 
         def on_send(node)
-          return unless example_send?(node)
-          return if inside_shared_group?(node)
+          return unless node.receiver.nil?
 
-          check_example_placement(node)
+          groups = enclosing_groups(node)
+          return if groups.any? { |group| shared_group?(group) || method_describe?(group) }
+          return unless groups.any? { |group| class_describe?(group) }
+
+          add_offense(node, message: MSG_METHOD_LABEL)
         end
         alias on_csend on_send
 
         private
 
-        def check_class_label(node)
-          return unless describe_send?(node.send_node) && enclosing_group(node).nil?
+        def check_class_label(send_node)
+          return unless describe?(send_node)
 
-          label = node.send_node.first_argument
+          label = send_node.first_argument
           return if label.nil? || label.const_type?
 
           add_offense(label, message: MSG_CLASS_LABEL)
         end
 
-        def check_method_describe_placement(node)
-          return unless method_describe?(node)
+        def check_method_describe_placement(send_node, groups)
+          return unless method_describe?(send_node)
 
-          parent = enclosing_group(node)
+          parent = groups.first
           return if parent.nil? || class_describe?(parent)
-          return unless inside_class_describe?(node)
+          return unless groups.any? { |group| class_describe?(group) }
 
-          add_offense(node.send_node, message: MSG_DIRECTLY_INSIDE)
+          add_offense(send_node, message: MSG_DIRECTLY_INSIDE)
         end
 
-        def check_example_placement(node)
-          return unless inside_class_describe?(node)
-          return if node.each_ancestor(:block, :numblock).any? { |ancestor| method_describe?(ancestor) }
-
-          add_offense(node, message: MSG_METHOD_LABEL)
+        def enclosing_groups(node)
+          node.each_ancestor(:block, :numblock).filter_map do |ancestor|
+            send_node = ancestor.send_node
+            send_node if example_group?(send_node) || shared_group?(send_node)
+          end
         end
 
-        def enclosing_group(node)
-          node.each_ancestor(:block, :numblock).find { |ancestor| example_group_send?(ancestor.send_node) }
+        def example_group?(send_node)
+          EXAMPLE_GROUP_METHODS.include?(send_node.method_name) && rspec_receiver?(send_node)
         end
 
-        def inside_class_describe?(node)
-          node.each_ancestor(:block, :numblock).any? { |ancestor| class_describe?(ancestor) }
+        def shared_group?(send_node)
+          SHARED_GROUP_METHODS.include?(send_node.method_name) && rspec_receiver?(send_node)
         end
 
-        def inside_shared_group?(node)
-          node.each_ancestor(:block, :numblock).any? { |ancestor| shared_group_send?(ancestor.send_node) }
+        def describe?(send_node)
+          DESCRIBE_METHODS.include?(send_node.method_name) && rspec_receiver?(send_node)
         end
 
-        def class_describe?(node)
-          return false unless describe_send?(node.send_node)
+        def class_describe?(send_node)
+          return false unless describe?(send_node)
 
-          node.send_node.first_argument&.const_type? || false
+          send_node.first_argument&.const_type? || false
         end
 
-        def method_describe?(node)
-          return false unless describe_send?(node.send_node)
+        def method_describe?(send_node)
+          return false unless describe?(send_node)
 
-          label = node.send_node.first_argument
+          label = send_node.first_argument
           return false unless label&.str_type?
 
           METHOD_LABEL.match?(label.value)
+        end
+
+        def rspec_receiver?(send_node)
+          receiver = send_node.receiver
+          return true if receiver.nil?
+
+          receiver.const_type? && receiver.short_name == :RSpec && (receiver.namespace.nil? || receiver.namespace.cbase_type?)
         end
       end
     end
